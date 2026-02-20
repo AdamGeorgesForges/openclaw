@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { AgentBootstrapPresetConfig } from "../config/types.agent-defaults.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { isCronSessionKey, isSubagentSessionKey } from "../routing/session-key.js";
@@ -102,6 +103,20 @@ type WorkspaceOnboardingState = {
   onboardingCompletedAt?: string;
 };
 
+type WorkspacePresetKey = "agents" | "soul" | "identity" | "user" | "heartbeat" | "bootstrap";
+
+const PRESET_TARGETS: ReadonlyArray<{
+  key: WorkspacePresetKey;
+  name: WorkspaceBootstrapFileName;
+}> = [
+  { key: "agents", name: DEFAULT_AGENTS_FILENAME },
+  { key: "soul", name: DEFAULT_SOUL_FILENAME },
+  { key: "identity", name: DEFAULT_IDENTITY_FILENAME },
+  { key: "user", name: DEFAULT_USER_FILENAME },
+  { key: "heartbeat", name: DEFAULT_HEARTBEAT_FILENAME },
+  { key: "bootstrap", name: DEFAULT_BOOTSTRAP_FILENAME },
+];
+
 /** Set of recognized bootstrap filenames for runtime validation */
 const VALID_BOOTSTRAP_NAMES: ReadonlySet<string> = new Set([
   DEFAULT_AGENTS_FILENAME,
@@ -129,6 +144,40 @@ async function writeFileIfMissing(filePath: string, content: string): Promise<bo
     }
     return false;
   }
+}
+
+async function writePresetFile(params: {
+  filePath: string;
+  content: string;
+  force?: boolean;
+}): Promise<boolean> {
+  if (params.force) {
+    await fs.writeFile(params.filePath, params.content, {
+      encoding: "utf-8",
+      flag: "w",
+    });
+    return true;
+  }
+  return writeFileIfMissing(params.filePath, params.content);
+}
+
+async function resolvePresetContent(params: {
+  preset?: { content?: string; path?: string };
+  baseDir?: string;
+  fallbackTemplateName: WorkspaceBootstrapFileName;
+}): Promise<string> {
+  const inline = params.preset?.content;
+  if (typeof inline === "string") {
+    return inline;
+  }
+  const sourcePath = params.preset?.path?.trim();
+  if (sourcePath) {
+    const fullPath = path.isAbsolute(sourcePath)
+      ? sourcePath
+      : path.resolve(params.baseDir ?? process.cwd(), sourcePath);
+    return await fs.readFile(fullPath, "utf-8");
+  }
+  return loadTemplate(params.fallbackTemplateName);
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -258,6 +307,9 @@ async function ensureGitRepo(dir: string, isBrandNewWorkspace: boolean) {
 export async function ensureAgentWorkspace(params?: {
   dir?: string;
   ensureBootstrapFiles?: boolean;
+  bootstrapPreset?: AgentBootstrapPresetConfig;
+  bootstrapPresetBaseDir?: string;
+  createBootstrapFile?: boolean;
 }): Promise<{
   dir: string;
   agentsPath?: string;
@@ -285,6 +337,18 @@ export async function ensureAgentWorkspace(params?: {
   const bootstrapPath = path.join(dir, DEFAULT_BOOTSTRAP_FILENAME);
   const statePath = resolveWorkspaceStatePath(dir);
 
+  const shouldCreateBootstrapFile = params?.createBootstrapFile ?? true;
+  const presetConfig = params?.bootstrapPreset;
+  const presetEnabled = Boolean(presetConfig?.enabled);
+  const configuredPresetBaseDir = presetConfig?.baseDir?.trim();
+  const presetBaseDir = configuredPresetBaseDir
+    ? path.isAbsolute(configuredPresetBaseDir)
+      ? configuredPresetBaseDir
+      : path.resolve(params?.bootstrapPresetBaseDir ?? process.cwd(), configuredPresetBaseDir)
+    : params?.bootstrapPresetBaseDir;
+  const presetFiles = presetConfig?.files;
+  const presetForce = Boolean(presetConfig?.force);
+
   const isBrandNewWorkspace = await (async () => {
     const paths = [agentsPath, soulPath, toolsPath, identityPath, userPath, heartbeatPath];
     const existing = await Promise.all(
@@ -300,18 +364,43 @@ export async function ensureAgentWorkspace(params?: {
     return existing.every((v) => !v);
   })();
 
-  const agentsTemplate = await loadTemplate(DEFAULT_AGENTS_FILENAME);
-  const soulTemplate = await loadTemplate(DEFAULT_SOUL_FILENAME);
   const toolsTemplate = await loadTemplate(DEFAULT_TOOLS_FILENAME);
   const identityTemplate = await loadTemplate(DEFAULT_IDENTITY_FILENAME);
   const userTemplate = await loadTemplate(DEFAULT_USER_FILENAME);
-  const heartbeatTemplate = await loadTemplate(DEFAULT_HEARTBEAT_FILENAME);
-  await writeFileIfMissing(agentsPath, agentsTemplate);
-  await writeFileIfMissing(soulPath, soulTemplate);
+
+  const targetPathByName = new Map<WorkspaceBootstrapFileName, string>([
+    [DEFAULT_AGENTS_FILENAME, agentsPath],
+    [DEFAULT_SOUL_FILENAME, soulPath],
+    [DEFAULT_IDENTITY_FILENAME, identityPath],
+    [DEFAULT_USER_FILENAME, userPath],
+    [DEFAULT_HEARTBEAT_FILENAME, heartbeatPath],
+    [DEFAULT_BOOTSTRAP_FILENAME, bootstrapPath],
+  ]);
+
+  if (presetEnabled) {
+    for (const target of PRESET_TARGETS) {
+      if (target.key === "bootstrap" && !presetFiles?.bootstrap?.enabled) {
+        continue;
+      }
+      const targetPath = targetPathByName.get(target.name);
+      if (!targetPath) {
+        continue;
+      }
+      const content = await resolvePresetContent({
+        preset: presetFiles?.[target.key],
+        baseDir: presetBaseDir,
+        fallbackTemplateName: target.name,
+      });
+      await writePresetFile({ filePath: targetPath, content, force: presetForce });
+    }
+  }
+
+  await writeFileIfMissing(agentsPath, await loadTemplate(DEFAULT_AGENTS_FILENAME));
+  await writeFileIfMissing(soulPath, await loadTemplate(DEFAULT_SOUL_FILENAME));
   await writeFileIfMissing(toolsPath, toolsTemplate);
   await writeFileIfMissing(identityPath, identityTemplate);
   await writeFileIfMissing(userPath, userTemplate);
-  await writeFileIfMissing(heartbeatPath, heartbeatTemplate);
+  await writeFileIfMissing(heartbeatPath, await loadTemplate(DEFAULT_HEARTBEAT_FILENAME));
 
   let state = await readWorkspaceOnboardingState(statePath);
   let stateDirty = false;
@@ -330,7 +419,16 @@ export async function ensureAgentWorkspace(params?: {
     markState({ onboardingCompletedAt: nowIso() });
   }
 
-  if (!state.bootstrapSeededAt && !state.onboardingCompletedAt && !bootstrapExists) {
+  if (!shouldCreateBootstrapFile && !state.onboardingCompletedAt && !bootstrapExists) {
+    markState({ onboardingCompletedAt: nowIso() });
+  }
+
+  if (
+    shouldCreateBootstrapFile &&
+    !state.bootstrapSeededAt &&
+    !state.onboardingCompletedAt &&
+    !bootstrapExists
+  ) {
     // Legacy migration path: if USER/IDENTITY diverged from templates, treat onboarding as complete
     // and avoid recreating BOOTSTRAP for already-onboarded workspaces.
     const [identityContent, userContent] = await Promise.all([
@@ -343,7 +441,17 @@ export async function ensureAgentWorkspace(params?: {
       markState({ onboardingCompletedAt: nowIso() });
     } else {
       const bootstrapTemplate = await loadTemplate(DEFAULT_BOOTSTRAP_FILENAME);
-      const wroteBootstrap = await writeFileIfMissing(bootstrapPath, bootstrapTemplate);
+      const wroteBootstrap = presetEnabled
+        ? await writePresetFile({
+            filePath: bootstrapPath,
+            content: await resolvePresetContent({
+              preset: presetFiles?.bootstrap,
+              baseDir: presetBaseDir,
+              fallbackTemplateName: DEFAULT_BOOTSTRAP_FILENAME,
+            }),
+            force: presetForce,
+          })
+        : await writeFileIfMissing(bootstrapPath, bootstrapTemplate);
       if (!wroteBootstrap) {
         bootstrapExists = await fileExists(bootstrapPath);
       } else {

@@ -1,6 +1,7 @@
+import path from "node:path";
 import { formatCliCommand } from "../../cli/command-format.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import { resolveGatewayPort, writeConfigFile } from "../../config/config.js";
+import { createConfigIO, resolveGatewayPort, writeConfigFile } from "../../config/config.js";
 import { logConfigUpdated } from "../../config/logging.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import { DEFAULT_GATEWAY_DAEMON_RUNTIME } from "../daemon-runtime.js";
@@ -29,6 +30,8 @@ export async function runNonInteractiveOnboardingLocal(params: {
 }) {
   const { opts, runtime, baseConfig } = params;
   const mode = "local" as const;
+
+  const configPath = createConfigIO().configPath;
 
   const workspaceDir = resolveNonInteractiveWorkspaceDir({
     opts,
@@ -83,6 +86,8 @@ export async function runNonInteractiveOnboardingLocal(params: {
 
   await ensureWorkspaceAndSessions(workspaceDir, runtime, {
     skipBootstrap: Boolean(nextConfig.agents?.defaults?.skipBootstrap),
+    bootstrapPreset: nextConfig.agents?.defaults?.bootstrapPreset,
+    bootstrapPresetBaseDir: path.dirname(configPath),
   });
 
   await installGatewayDaemonNonInteractive({
