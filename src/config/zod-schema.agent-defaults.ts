@@ -12,6 +12,36 @@ import {
   HumanDelaySchema,
 } from "./zod-schema.core.js";
 
+const BootstrapPresetFileSchema = z
+  .object({
+    content: z.string().optional(),
+    path: z.string().optional(),
+  })
+  .strict();
+
+const BootstrapPresetSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    force: z.boolean().optional(),
+    baseDir: z.string().optional(),
+    files: z
+      .object({
+        agents: BootstrapPresetFileSchema.optional(),
+        soul: BootstrapPresetFileSchema.optional(),
+        identity: BootstrapPresetFileSchema.optional(),
+        user: BootstrapPresetFileSchema.optional(),
+        heartbeat: BootstrapPresetFileSchema.optional(),
+        bootstrap: BootstrapPresetFileSchema.extend({
+          enabled: z.boolean().optional(),
+        })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 export const AgentDefaultsSchema = z
   .object({
     model: z
@@ -45,6 +75,7 @@ export const AgentDefaultsSchema = z
     workspace: z.string().optional(),
     repoRoot: z.string().optional(),
     skipBootstrap: z.boolean().optional(),
+    bootstrapPreset: BootstrapPresetSchema.optional(),
     bootstrapMaxChars: z.number().int().positive().optional(),
     bootstrapTotalMaxChars: z.number().int().positive().optional(),
     userTimezone: z.string().optional(),

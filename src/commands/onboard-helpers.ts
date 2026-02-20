@@ -7,6 +7,7 @@ import { DEFAULT_AGENT_WORKSPACE_DIR, ensureAgentWorkspace } from "../agents/wor
 import type { OpenClawConfig } from "../config/config.js";
 import { CONFIG_PATH } from "../config/config.js";
 import { resolveSessionTranscriptsDirForAgent } from "../config/sessions.js";
+import type { AgentBootstrapPresetConfig } from "../config/types.agent-defaults.js";
 import { callGateway } from "../gateway/call.js";
 import { normalizeControlUiBasePath } from "../gateway/control-ui-shared.js";
 import { pickPrimaryLanIPv4, isValidIPv4 } from "../gateway/net.js";
@@ -288,11 +289,21 @@ export async function openUrlInBackground(url: string): Promise<boolean> {
 export async function ensureWorkspaceAndSessions(
   workspaceDir: string,
   runtime: RuntimeEnv,
-  options?: { skipBootstrap?: boolean; agentId?: string },
+  options?: {
+    skipBootstrap?: boolean;
+    agentId?: string;
+    bootstrapPreset?: AgentBootstrapPresetConfig;
+    bootstrapPresetBaseDir?: string;
+  },
 ) {
+  const presetEnabled = Boolean(options?.bootstrapPreset?.enabled);
   const ws = await ensureAgentWorkspace({
     dir: workspaceDir,
-    ensureBootstrapFiles: !options?.skipBootstrap,
+    ensureBootstrapFiles: !options?.skipBootstrap || presetEnabled,
+    createBootstrapFile: !options?.skipBootstrap,
+    bootstrapPreset:
+      options?.agentId && options.agentId !== "main" ? undefined : options?.bootstrapPreset,
+    bootstrapPresetBaseDir: options?.bootstrapPresetBaseDir,
   });
   runtime.log(`Workspace OK: ${shortenHomePath(ws.dir)}`);
   const sessionsDir = resolveSessionTranscriptsDirForAgent(options?.agentId);

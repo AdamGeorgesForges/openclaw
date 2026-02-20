@@ -25,6 +25,34 @@ export type AgentModelListConfig = {
   fallbacks?: string[];
 };
 
+export type AgentBootstrapPresetFileConfig = {
+  /** Inline markdown content for this file. */
+  content?: string;
+  /** File path to load markdown content from. */
+  path?: string;
+};
+
+export type AgentBootstrapPresetConfig = {
+  /** Enable first-run preset seeding for workspace bootstrap files. */
+  enabled?: boolean;
+  /** Overwrite existing files instead of writing only when missing. */
+  force?: boolean;
+  /** Optional base directory for relative preset file paths. */
+  baseDir?: string;
+  /** Per-file preset sources. */
+  files?: {
+    agents?: AgentBootstrapPresetFileConfig;
+    soul?: AgentBootstrapPresetFileConfig;
+    identity?: AgentBootstrapPresetFileConfig;
+    user?: AgentBootstrapPresetFileConfig;
+    heartbeat?: AgentBootstrapPresetFileConfig;
+    bootstrap?: AgentBootstrapPresetFileConfig & {
+      /** Enable explicit BOOTSTRAP.md preseed for preconfigured installs. */
+      enabled?: boolean;
+    };
+  };
+};
+
 export type AgentContextPruningConfig = {
   mode?: "off" | "cache-ttl";
   /** TTL to consider cache expired (duration string, default unit: minutes). */
@@ -134,6 +162,8 @@ export type AgentDefaultsConfig = {
   repoRoot?: string;
   /** Skip bootstrap (BOOTSTRAP.md creation, etc.) for pre-configured deployments. */
   skipBootstrap?: boolean;
+  /** Optional first-run preset sources for bootstrap files (path and/or inline content). */
+  bootstrapPreset?: AgentBootstrapPresetConfig;
   /** Max chars for injected bootstrap files before truncation (default: 20000). */
   bootstrapMaxChars?: number;
   /** Max total chars across all injected bootstrap files (default: 150000). */

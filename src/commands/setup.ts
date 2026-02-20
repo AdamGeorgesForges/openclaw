@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import JSON5 from "json5";
 import { DEFAULT_AGENT_WORKSPACE_DIR, ensureAgentWorkspace } from "../agents/workspace.js";
 import { type OpenClawConfig, createConfigIO, writeConfigFile } from "../config/config.js";
@@ -63,9 +64,14 @@ export async function setupCommand(
     runtime.log(`Config OK: ${formatConfigPath(configPath)}`);
   }
 
+  const bootstrapPreset = next.agents?.defaults?.bootstrapPreset;
+  const skipBootstrap = Boolean(next.agents?.defaults?.skipBootstrap);
   const ws = await ensureAgentWorkspace({
     dir: workspace,
-    ensureBootstrapFiles: !next.agents?.defaults?.skipBootstrap,
+    ensureBootstrapFiles: !skipBootstrap || Boolean(bootstrapPreset?.enabled),
+    createBootstrapFile: !skipBootstrap,
+    bootstrapPreset,
+    bootstrapPresetBaseDir: path.dirname(configPath),
   });
   runtime.log(`Workspace OK: ${shortenHomePath(ws.dir)}`);
 
