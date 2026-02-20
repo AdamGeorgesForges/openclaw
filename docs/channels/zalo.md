@@ -15,7 +15,7 @@ Zalo ships as a plugin and is not bundled with the core install.
 
 - Install via CLI: `openclaw plugins install @openclaw/zalo`
 - Or select **Zalo** during onboarding and confirm the install prompt
-- Details: [Plugins](/plugin)
+- Details: [Plugins](/tools/plugin)
 
 ## Quick setup (beginner)
 
@@ -104,7 +104,7 @@ Multi-account support: use `channels.zalo.accounts` with per-account tokens and 
 - Approve via:
   - `openclaw pairing list zalo`
   - `openclaw pairing approve zalo <CODE>`
-- Pairing is the default token exchange. Details: [Pairing](/start/pairing)
+- Pairing is the default token exchange. Details: [Pairing](/channels/pairing)
 - `channels.zalo.allowFrom` accepts numeric user IDs (no username lookup available).
 
 ## Long-polling vs webhook
@@ -115,6 +115,9 @@ Multi-account support: use `channels.zalo.accounts` with per-account tokens and 
   - Webhook URL must use HTTPS.
   - Zalo sends events with `X-Bot-Api-Secret-Token` header for verification.
   - Gateway HTTP handles webhook requests at `channels.zalo.webhookPath` (defaults to the webhook URL path).
+  - Requests must use `Content-Type: application/json` (or `+json` media types).
+  - Duplicate events (`event_name + message_id`) are ignored for a short replay window.
+  - Burst traffic is rate-limited per path/source and may return HTTP 429.
 
 **Note:** getUpdates (polling) and webhook are mutually exclusive per Zalo API docs.
 
