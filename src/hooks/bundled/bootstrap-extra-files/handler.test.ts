@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../../../config/config.js";
-import { makeTempWorkspace, writeWorkspaceFile } from "../../../test-helpers/workspace.js";
 import type { AgentBootstrapHookContext } from "../../hooks.js";
+import { makeTempWorkspace, writeWorkspaceFile } from "../../../test-helpers/workspace.js";
 import { createHookEvent } from "../../hooks.js";
 import handler from "./handler.js";
 
@@ -55,7 +55,7 @@ describe("bootstrap-extra-files hook", () => {
     await fs.mkdir(extraDir, { recursive: true });
     await fs.writeFile(path.join(extraDir, "AGENTS.md"), "extra agents", "utf-8");
 
-    const cfg = createBootstrapExtraConfig(["packages/*/AGENTS.md"]);
+    const cfg = createBootstrapExtraConfig(["packages/core/AGENTS.md"]);
     const context = await createBootstrapContext({
       workspaceDir: tempDir,
       cfg,
@@ -79,7 +79,7 @@ describe("bootstrap-extra-files hook", () => {
     await fs.mkdir(extraDir, { recursive: true });
     await fs.writeFile(path.join(extraDir, "SOUL.md"), "evil", "utf-8");
 
-    const cfg = createBootstrapExtraConfig(["packages/*/SOUL.md"]);
+    const cfg = createBootstrapExtraConfig(["packages/persona/SOUL.md"]);
     const context = await createBootstrapContext({
       workspaceDir: tempDir,
       cfg,
@@ -93,6 +93,10 @@ describe("bootstrap-extra-files hook", () => {
     const event = createHookEvent("agent", "bootstrap", "agent:main:subagent:abc", context);
     await handler(event);
 
-    expect(context.bootstrapFiles.map((f) => f.name).toSorted()).toEqual(["AGENTS.md", "TOOLS.md"]);
+    expect(context.bootstrapFiles.map((f) => f.name).toSorted()).toEqual([
+      "AGENTS.md",
+      "SOUL.md",
+      "TOOLS.md",
+    ]);
   });
 });

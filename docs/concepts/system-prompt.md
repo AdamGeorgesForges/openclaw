@@ -75,8 +75,8 @@ Large files are truncated with a marker. The max per-file size is controlled by
 content across files is capped by `agents.defaults.bootstrapTotalMaxChars`
 (default: 150000). Missing files inject a short missing-file marker.
 
-Sub-agent sessions only inject `AGENTS.md` and `TOOLS.md` (other bootstrap files
-are filtered out to keep the sub-agent context small).
+Sub-agent sessions inject `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`,
+and `USER.md` (while `HEARTBEAT.md`, `BOOTSTRAP.md`, and memory files are filtered out).
 
 Internal hooks can intercept this step via `agent:bootstrap` to mutate or replace
 the injected bootstrap files (for example swapping `SOUL.md` for an alternate persona).
