@@ -5,11 +5,14 @@ import { makeTempWorkspace, writeWorkspaceFile } from "../test-helpers/workspace
 import {
   DEFAULT_AGENTS_FILENAME,
   DEFAULT_BOOTSTRAP_FILENAME,
+  DEFAULT_HEARTBEAT_FILENAME,
   DEFAULT_IDENTITY_FILENAME,
   DEFAULT_MEMORY_ALT_FILENAME,
   DEFAULT_MEMORY_FILENAME,
+  DEFAULT_SOUL_FILENAME,
   DEFAULT_TOOLS_FILENAME,
   DEFAULT_USER_FILENAME,
+  filterBootstrapFilesForSession,
   ensureAgentWorkspace,
   loadWorkspaceBootstrapFiles,
   resolveDefaultAgentWorkspaceDir,
@@ -99,6 +102,31 @@ describe("ensureAgentWorkspace", () => {
     const state = await readOnboardingState(tempDir);
     expect(state.bootstrapSeededAt).toBeUndefined();
     expect(state.onboardingCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe("filterBootstrapFilesForSession", () => {
+  it("keeps preconfigured persona files for subagent sessions while excluding bootstrap/heartbeat/memory", () => {
+    const files = [
+      { name: DEFAULT_AGENTS_FILENAME, path: "/tmp/AGENTS.md", missing: false, content: "a" },
+      { name: DEFAULT_SOUL_FILENAME, path: "/tmp/SOUL.md", missing: false, content: "s" },
+      { name: DEFAULT_TOOLS_FILENAME, path: "/tmp/TOOLS.md", missing: false, content: "t" },
+      { name: DEFAULT_IDENTITY_FILENAME, path: "/tmp/IDENTITY.md", missing: false, content: "i" },
+      { name: DEFAULT_USER_FILENAME, path: "/tmp/USER.md", missing: false, content: "u" },
+      { name: DEFAULT_BOOTSTRAP_FILENAME, path: "/tmp/BOOTSTRAP.md", missing: false, content: "b" },
+      { name: DEFAULT_HEARTBEAT_FILENAME, path: "/tmp/HEARTBEAT.md", missing: false, content: "h" },
+      { name: DEFAULT_MEMORY_FILENAME, path: "/tmp/MEMORY.md", missing: false, content: "m" },
+    ];
+
+    const filtered = filterBootstrapFilesForSession(files, "agent:main:subagent:abc");
+
+    expect(filtered.map((file) => file.name)).toEqual([
+      DEFAULT_AGENTS_FILENAME,
+      DEFAULT_SOUL_FILENAME,
+      DEFAULT_TOOLS_FILENAME,
+      DEFAULT_IDENTITY_FILENAME,
+      DEFAULT_USER_FILENAME,
+    ]);
   });
 });
 
